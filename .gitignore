@@ -1,0 +1,27 @@
+# Maven files
+target/
+
+# Eclipse
+.project
+.classpath
+.settings/
+workspace
+
+# Intellij
+.idea/
+*.iml
+*.iws
+
+# Mac
+.DS_Store
+
+# Node
+node_modules
+npm-debug.log
+
+# Environment files
+.npmrc
+env.json
+
+# Service build, test and deploy
+newman

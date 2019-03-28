@@ -1,0 +1,55 @@
+﻿AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Deploys a Lambda function triggered by CloudWatch that removes orphaned Lambda Log Groups.
+
+Parameters:
+
+  TriggerTime:
+    Type: String
+    Description: The time the Lambda function should be triggered each day, defaults to 11pm every day
+    Default: "cron(0 23 * * ? *)"
+
+  Owner:
+    Type: String
+    Description: The owner of this deployment
+
+Globals:
+  Function:
+    Runtime: nodejs8.10
+    MemorySize: 128
+    Timeout: 15
+    CodeUri: ./target/lambda-log-group-cleaner.zip
+    Tags:
+      Owner: !Ref Owner
+
+Resources:
+
+  # lambda:ListFunctions, 
+
+  LogGroupCleanerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+
+  LogGroupCleanerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: cleaner.handler
+      Description: Function that deletes orphaned lambda log groups
+      Role: !GetAtt LogGroupCleanerLambdaRole.Arn
+      Events:
+        TriggerEvent:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref TriggerTime

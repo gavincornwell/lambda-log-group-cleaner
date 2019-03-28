@@ -1,0 +1,21 @@
+{
+  "name": "lambda-log-group-cleaner",
+  "version": "0.0.1",
+  "description": "Function that deletes orphaned Lambda Log Groups",
+  "main": "cleaner.js",
+  "scripts": {
+    "test": "mocha",
+    "package": "mkdir -p ./target | zip -i \\*.js \\*.json -r ./target/lambda-log-group-cleaner.zip ./*.js $(npm list --prod --parseable | sed -nE 's/.*\\/(node_modules\\/.*)/\\1/p' | awk '{printf \"%s \", $0;}')"
+  },
+  "keywords": [
+    "lambda",
+    "log-group",
+    "cloudwatch"
+  ],
+  "author": "Gavin Cornwell",
+  "license": "Apache-2.0",
+  "dependencies": {},
+  "devDependencies": {
+    "aws-sdk": "^2.413.0"
+  }
+}
