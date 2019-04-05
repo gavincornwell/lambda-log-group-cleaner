@@ -17,7 +17,7 @@ Globals:
   Function:
     Runtime: nodejs8.10
     MemorySize: 128
-    Timeout: 15
+    Timeout: 300
     CodeUri: ./target/lambda-log-group-cleaner.zip
     Tags:
       Owner: !Ref Owner
