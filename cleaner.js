@@ -49,7 +49,7 @@ exports.handler = (event, context, callback) => {
               var deleteGroupParams = {
                 logGroupName: groupNames[i]
               };
-              cloudwatchlogs.deleteLogGroup(deleteGroupParams, function (error, data) {
+              cloudwatchlogs.deleteLogGroup(deleteGroupParams, function (error) {
                 groupsProcessed++;
 
                 if (error) {
@@ -82,7 +82,7 @@ var buildListOfFunctionNames = function (functionNames, nextMarker, functionName
 
   let listFunctionsParams = {
     MaxItems: 25
-  }
+  };
 
   if (nextMarker) {
     listFunctionsParams.Marker = nextMarker;

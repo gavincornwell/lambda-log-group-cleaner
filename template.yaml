@@ -24,14 +24,21 @@ Globals:
 
 Resources:
 
-  # lambda:ListFunctions, 
-
   LogGroupCleanerLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: list-functions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - lambda:ListFunctions
+                Resource: "*"
+                Effect: Allow
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
