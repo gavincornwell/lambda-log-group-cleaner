@@ -105,7 +105,7 @@ var processLogGroups = async (functionNames, groupNames) => {
         console.log("Deleting group " + groupName + " as the Lambda function no longer exists...");
 
         var deleteGroupParams = {
-          logGroupName: groupNames[i]
+          logGroupName: groupName
         };
         try {
           await cloudwatchlogs.deleteLogGroup(deleteGroupParams).promise();
