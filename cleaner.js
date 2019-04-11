@@ -128,9 +128,3 @@ var processLogGroups = async (functionNames, groupNames) => {
     throw e;
   }
 };
-
-exports.handler({}).then((results) => {
-  console.log("RESULTS: " + JSON.stringify(results, null, 2));
-}).catch((e) => {
-  console.log("ERROR: " + e.message);
-});
