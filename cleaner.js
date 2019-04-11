@@ -4,141 +4,133 @@ const AWS = require("aws-sdk");
 const lambda = new AWS.Lambda();
 const cloudwatchlogs = new AWS.CloudWatchLogs();
 
-exports.handler = (event, context, callback) => {
+exports.handler = async (event) => {
   console.log("Received event: " + JSON.stringify(event, null, 2));
 
-  // build a map of function names currently deployed
-  buildListOfFunctionNames([], null, function (error, functionNames) {
-    if (error) {
-      console.log(error, error.stack);
-      callback(error);
-    } else {
-      console.log("Found " + functionNames.length + " functions.");
-      console.log("Function names: " + functionNames);
+  try {
+    // retrieve lists is parallel
+    let results = await Promise.all([buildListOfFunctionNames(), buildListOfGroupNames()]);
+    let functionNames = results[0];
+    let groupNames = results[1];
+    console.log("Found " + functionNames.length + " functions.");
+    console.log("Found " + groupNames.length + " log groups.");
 
-      buildListOfGroupNames([], null, function (error, groupNames) {
-        if (error) {
-          console.log(error, error.stack);
-          callback(error);
-        } else {
-          console.log("Found " + groupNames.length + " log groups.");
-          console.log("Log group names: " + groupNames);
-
-          var groupsProcessed = 0;
-          var groupsIgnored = 0;
-          var groupsDeleted = 0;
-          var groupsFailed = 0;
-
-          // iterate through log groups and look for associated lambda function
-          for (let i = 0; i < groupNames.length; i++) {
-
-            // strip prefix from group name
-            let lambdaName = groupNames[i].substring(12);
-
-            // look for name in list of functions
-            var lambdaExists = functionNames.includes(lambdaName);
-
-            // if missing, delete the log group
-            if (lambdaExists) {
-              groupsIgnored++;
-              groupsProcessed++;
-              console.log("Ignoring group " + groupNames[i] + " as the Lambda function exists");
-            } else {
-              console.log("Deleting group " + groupNames[i] + " as the Lambda function no longer exists...");
-
-              var deleteGroupParams = {
-                logGroupName: groupNames[i]
-              };
-              cloudwatchlogs.deleteLogGroup(deleteGroupParams, function (error) {
-                groupsProcessed++;
-
-                if (error) {
-                  groupsFailed++;
-                } else {
-                  groupsDeleted++;
-                }
-
-                // if all groups have been processed, call the main callback with results
-                if (groupsProcessed == groupNames.length) {
-                  let result = {
-                    groupsProcessed: groupsProcessed,
-                    groupsIgnored: groupsIgnored,
-                    groupsDeleted: groupsDeleted,
-                    groupsFailed: groupsFailed
-                  };
-                  console.log("Returning result: " + JSON.stringify(result, null, 2));
-                  callback(null, result);
-                }
-              });
-            }
-          }
-        }
-      });
-    }
-  });
+    // do the processing and return result
+    var processingResults = await processLogGroups(functionNames, groupNames);
+    console.log("Returning result: " + JSON.stringify(processingResults, null, 2));
+    return processingResults;
+  } catch (e) {
+    throw new Error("Failed to clean log groups: " + e.message);
+  }
 };
 
-var buildListOfFunctionNames = function (functionNames, nextMarker, functionNamesCallback) {
+var buildListOfFunctionNames = async () => {
+  try {
+    let functionNames = [];
 
-  let listFunctionsParams = {
-    MaxItems: 25
-  };
+    let nextMarker = null;
+    let params = {
+      MaxItems: 25
+    };
 
-  if (nextMarker) {
-    listFunctionsParams.Marker = nextMarker;
-  }
-
-  // console.log("Calling listFunctions with params: " + JSON.stringify(listFunctionsParams, null, 2));
-  lambda.listFunctions(listFunctionsParams, function (error, data) {
-    if (error) {
-      console.log(error, error.stack);
-      functionNamesCallback(error);
-    } else {
-      // console.log("Found " + data.Functions.length + " functions.");
-      // console.log("listFunctions result: " + JSON.stringify(data, null, 2));
-
+    do {
+      if (nextMarker !== null) {
+        params.Marker = nextMarker;
+      }
+      let data = await lambda.listFunctions(params).promise();
+      //console.log("listFunctions response: " + JSON.stringify(data, null, 2));
       for (var i = 0; i < data.Functions.length; i++) {
         functionNames.push(data.Functions[i].FunctionName);
       }
+      nextMarker = data.NextMarker;
+    } while (nextMarker !== null && nextMarker !== undefined);
 
-      if (data.NextMarker) {
-        buildListOfFunctionNames(functionNames, data.NextMarker, functionNamesCallback);
-      } else {
-        functionNamesCallback(null, functionNames);
-      }
-    }
-  });
+    return functionNames;
+  } catch (e) {
+    throw e;
+  }
 };
 
-var buildListOfGroupNames = function (groupNames, nextToken, logGroupNamesCallback) {
+var buildListOfGroupNames = async () => {
+  try {
+    let groupNames = [];
 
-  let describeLogGroupsParams = {
-    logGroupNamePrefix: "/aws/lambda/",
-    limit: 25
-  };
+    let nextToken = null;
+    let params = {
+      logGroupNamePrefix: "/aws/lambda/",
+      limit: 25
+    };
 
-  if (nextToken) {
-    describeLogGroupsParams.nextToken = nextToken;
-  }
-
-  // console.log("Calling describeLogGroups with params: " + JSON.stringify(describeLogGroupsParams, null, 2));
-  cloudwatchlogs.describeLogGroups(describeLogGroupsParams, function (error, data) {
-    if (error) {
-      console.log(error, error.stack);
-      logGroupNamesCallback(error);
-    } else {
-      // console.log("Found " + data.logGroups.length + " log groups.");
-      // console.log("describeLogGroups result: " + JSON.stringify(data, null, 2));
-
+    do {
+      if (nextToken !== null) {
+        params.nextToken = nextToken;
+      }
+      let data = await cloudwatchlogs.describeLogGroups(params).promise();
+      //console.log("describeLogGroups response: " + JSON.stringify(data, null, 2));
       for (var i = 0; i < data.logGroups.length; i++) {
         groupNames.push(data.logGroups[i].logGroupName);
       }
+      nextToken = data.nextToken;
+    } while (nextToken !== null && nextToken !== undefined);
 
-      if (data.nextToken) {
-        buildListOfGroupNames(groupNames, data.nextToken, logGroupNamesCallback);
+    return groupNames;
+  } catch (e) {
+    throw e;
+  }
+};
+
+var processLogGroups = async (functionNames, groupNames) => {
+  try {
+    let groupsProcessed = 0;
+    let groupsIgnored = 0;
+    let groupsDeleted = 0;
+    let groupsFailed = 0;
+
+    // iterate through log groups and look for associated lambda function
+    for (let i = 0; i < groupNames.length; i++) {
+      groupsProcessed++;
+      let groupName = groupNames[i];
+
+      // strip prefix from group name
+      let lambdaName = groupName.substring(12);
+
+      // look for name in list of functions
+      var lambdaExists = functionNames.includes(lambdaName);
+
+      // if function is missing, delete the log group
+      if (lambdaExists) {
+        groupsIgnored++;
+        console.log("Ignoring group " + groupName + " as the Lambda function exists");
       } else {
-        logGroupNamesCallback(null, groupNames);
+        console.log("Deleting group " + groupName + " as the Lambda function no longer exists...");
+
+        var deleteGroupParams = {
+          logGroupName: groupNames[i]
+        };
+        try {
+          await cloudwatchlogs.deleteLogGroup(deleteGroupParams).promise();
+          groupsDeleted++;
+        } catch (deleteError) {
+          console.log("Failed to delete group " + groupName);
+          groupsFailed++;
+        }
       }
     }
-  });
+
+    // build and return result object
+    return {
+      groupsProcessed: groupsProcessed,
+      groupsIgnored: groupsIgnored,
+      groupsDeleted: groupsDeleted,
+      groupsFailed: groupsFailed
+    };
+  } catch (e) {
+    throw e;
+  }
 };
+
+exports.handler({}).then((results) => {
+  console.log("RESULTS: " + JSON.stringify(results, null, 2));
+}).catch((e) => {
+  console.log("ERROR: " + e.message);
+});
